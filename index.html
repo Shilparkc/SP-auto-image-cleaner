@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Image Cleaner — TechWriter Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0c0c0e;
+      --panel: #141416;
+      --card: #1a1a1d;
+      --border: #252528;
+      --border-h: #3a3a3f;
+      --amber: #f59e0b;
+      --amber-glow: rgba(245,158,11,0.12);
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --red: #ef4444;
+      --text: #f0f0f0;
+      --text-mid: #a0a0a8;
+      --text-dim: #55555f;
+      --mono: 'DM Mono', monospace;
+      --sans: 'Syne', sans-serif;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;line-height:1.5;}
+
+    /* ── HEADER ── */
+    .header{border-bottom:1px solid var(--border);padding:18px 40px;display:flex;align-items:center;gap:14px;background:var(--panel);position:sticky;top:0;z-index:100;}
+    .logo-icon{width:38px;height:38px;background:var(--amber);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+    .logo-text h1{font-size:19px;font-weight:800;letter-spacing:-0.5px;}
+    .logo-text p{font-family:var(--mono);font-size:10px;color:var(--text-dim);letter-spacing:0.8px;text-transform:uppercase;}
+    .hbadge{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid rgba(245,158,11,0.25);background:rgba(245,158,11,0.08);padding:4px 10px;border-radius:4px;letter-spacing:0.5px;}
+
+    /* ── LAYOUT ── */
+    .main{max-width:1180px;margin:0 auto;padding:32px 40px;display:grid;grid-template-columns:1fr 370px;gap:24px;align-items:start;}
+    .left{display:flex;flex-direction:column;gap:20px;}
+    .right{display:flex;flex-direction:column;gap:20px;position:sticky;top:80px;}
+
+    /* ── STEP CARDS ── */
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color 0.2s;}
+    .card.active{border-color:rgba(245,158,11,0.25);}
+    .card-head{display:flex;align-items:center;gap:12px;padding:15px 20px;border-bottom:1px solid var(--border);}
+    .snum{width:26px;height:26px;border-radius:50%;background:var(--card);border:1px solid var(--border);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);flex-shrink:0;transition:all 0.2s;}
+    .card.active .snum{background:var(--amber);border-color:var(--amber);color:#000;font-weight:500;}
+    .card-title{font-weight:700;font-size:14px;letter-spacing:0.2px;}
+    .card-meta{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text-dim);}
+    .card-body{padding:20px;}
+
+    /* ── UPLOAD ZONE ── */
+    .drop-zone{border:2px dashed var(--border);border-radius:10px;padding:40px 28px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;background:transparent;}
+    .drop-zone:hover,.drop-zone.over{border-color:var(--amber);background:var(--amber-glow);}
+    .drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    .dz-icon{font-size:38px;margin-bottom:12px;display:block;}
+    .dz-title{font-size:15px;font-weight:700;margin-bottom:6px;}
+    .dz-desc{font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.9;}
+    .dz-actions{display:flex;gap:10px;justify-content:center;margin-top:18px;}
+    .btn-ghost{font-family:var(--mono);font-size:11px;padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-mid);cursor:pointer;transition:all 0.15s;}
+    .btn-ghost:hover{border-color:var(--amber);color:var(--amber);}
+
+    /* ── STATS BAR ── */
+    .stats-bar{display:flex;gap:16px;align-items:center;padding:9px 14px;background:var(--card);border-radius:7px;margin-bottom:14px;font-family:var(--mono);font-size:11px;flex-wrap:wrap;}
+    .stat{display:flex;align-items:center;gap:5px;}
+    .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+    .dot-g{background:var(--green);}
+    .dot-a{background:var(--amber);}
+    .dot-b{background:var(--blue);}
+    .sc{font-weight:500;color:var(--text);}
+    .sl{color:var(--text-dim);}
+    .stat-total{margin-left:auto;color:var(--text-mid);}
+
+    /* ── THUMB GRID ── */
+    .thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:8px;max-height:290px;overflow-y:auto;padding-right:3px;}
+    .thumb-grid::-webkit-scrollbar{width:4px;}
+    .thumb-grid::-webkit-scrollbar-track{background:var(--bg);}
+    .thumb-grid::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+    .thumb{position:relative;border-radius:6px;overflow:hidden;background:var(--card);aspect-ratio:4/3;border:1px solid var(--border);}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+    .tbadge{position:absolute;bottom:3px;left:3px;right:3px;font-family:var(--mono);font-size:8.5px;padding:2px 4px;border-radius:3px;text-align:center;font-weight:500;}
+    .b-sharp{background:rgba(34,197,94,0.92);color:#000;}
+    .b-sharpened{background:rgba(59,130,246,0.92);color:#fff;}
+    .b-analyzing{background:rgba(90,90,110,0.9);color:#ccc;}
+    .tname{position:absolute;top:3px;left:3px;right:3px;font-family:var(--mono);font-size:7.5px;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.65);padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .empty-hint{grid-column:1/-1;text-align:center;padding:28px 16px;font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+
+    /* ── PRESETS ── */
+    .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;}
+    .pbtn{padding:9px 11px;background:var(--card);border:1px solid var(--border);border-radius:7px;cursor:pointer;text-align:left;transition:all 0.15s;}
+    .pbtn:hover{border-color:var(--amber);}
+    .pbtn.sel{border-color:var(--amber);background:var(--amber-glow);}
+    .pl{font-size:11px;font-weight:700;color:var(--text);display:block;margin-bottom:1px;}
+    .pd{font-family:var(--mono);font-size:9.5px;color:var(--text-dim);}
+
+    /* ── CUSTOM SIZE ── */
+    .custom-row{display:flex;gap:8px;align-items:center;padding:10px 12px;background:var(--card);border-radius:7px;border:1px solid var(--border);margin-bottom:12px;}
+    .sgrp{display:flex;align-items:center;gap:5px;flex:1;}
+    .sinput{width:72px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px;font-family:var(--mono);font-size:11px;color:var(--text);outline:none;transition:border-color 0.15s;}
+    .sinput:focus{border-color:var(--amber);}
+    .ssep{font-family:var(--mono);font-size:11px;color:var(--text-dim);}
+    .lock-btn{width:28px;height:28px;background:var(--bg);border:1px solid var(--border);border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all 0.15s;color:var(--text-mid);}
+    .lock-btn.on{border-color:var(--amber);color:var(--amber);}
+
+    /* ── PAGE TOGGLE ── */
+    .ptoggle{display:flex;background:var(--card);border-radius:7px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px;}
+    .tbtn{flex:1;padding:7px;background:transparent;border:none;font-family:var(--mono);font-size:10px;color:var(--text-dim);cursor:pointer;transition:all 0.15s;}
+    .tbtn.on{background:var(--amber);color:#000;font-weight:500;}
+
+    /* ── PAGE PREVIEW ── */
+    .prev-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px;background:var(--card);border-radius:8px;border:1px solid var(--border);}
+    .page-mock{background:#fff;border-radius:3px;box-shadow:0 6px 24px rgba(0,0,0,0.6);position:relative;overflow:hidden;}
+    .page-margin-line{position:absolute;inset:0;border:1.5px dashed rgba(0,0,0,0.08);pointer-events:none;}
+    .img-block{position:absolute;background:rgba(59,130,246,0.18);border:1.5px solid rgba(59,130,246,0.6);border-radius:2px;transition:all 0.3s cubic-bezier(.25,.8,.25,1);}
+    .prev-lbl{font-family:var(--mono);font-size:10px;color:var(--text-mid);text-align:center;}
+    .prev-lbl em{color:var(--amber);font-style:normal;font-weight:500;}
+
+    /* ── DOWNLOAD ── */
+    .dl-body{padding:20px;}
+    .btn-main{width:100%;padding:15px;background:var(--amber);border:none;border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:800;color:#000;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;letter-spacing:0.2px;}
+    .btn-main:hover{background:#fbbf24;transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,158,11,0.3);}
+    .btn-main:active{transform:translateY(0);}
+    .btn-main:disabled{background:var(--border);color:var(--text-dim);cursor:not-allowed;transform:none;box-shadow:none;}
+    .dl-list{display:flex;flex-direction:column;gap:5px;margin-top:12px;}
+    .dl-row{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--text-dim);padding:7px 10px;background:var(--card);border-radius:5px;}
+    .dl-row span{font-size:15px;}
+
+    /* ── OVERLAY ── */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(4px);}
+    .overlay.show{display:flex;}
+    .prog-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px 42px;width:410px;text-align:center;}
+    .prog-icon{font-size:44px;margin-bottom:14px;display:block;animation:spin 2s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .prog-title{font-size:17px;font-weight:700;margin-bottom:5px;}
+    .prog-sub{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:18px;min-height:32px;}
+    .pbar-wrap{background:var(--card);border-radius:100px;height:7px;overflow:hidden;margin-bottom:8px;}
+    .pbar{height:100%;background:var(--amber);border-radius:100px;transition:width 0.3s ease;width:0%;}
+    .pct{font-family:var(--mono);font-size:10px;color:var(--text-mid);}
+
+    /* ── TOAST ── */
+    .toast{position:fixed;bottom:28px;right:28px;background:var(--green);color:#000;font-family:var(--mono);font-size:12px;font-weight:500;padding:12px 18px;border-radius:8px;display:none;align-items:center;gap:8px;z-index:1000;box-shadow:0 8px 28px rgba(34,197,94,0.35);}
+    .toast.show{display:flex;animation:pop 0.3s ease;}
+    @keyframes pop{from{transform:translateY(14px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-track{background:var(--bg);}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<div class="header">
+  <div class="logo-icon">🖼</div>
+  <div class="logo-text">
+    <h1>Auto Image Cleaner</h1>
+    <p>Sharpen · Resize · Export &nbsp;|&nbsp; Built for Technical Writers</p>
+  </div>
+  <div class="hbadge">BROWSER-ONLY · NO UPLOAD</div>
+</div>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<div class="main">
+
+  <!-- LEFT COLUMN -->
+  <div class="left">
+
+    <!-- STEP 1 -->
+    <div class="card active" id="card1">
+      <div class="card-head">
+        <div class="snum">1</div>
+        <div class="card-title">Upload Screenshots</div>
+        <div class="card-meta" id="file-count-label">No files loaded</div>
+      </div>
+      <div class="card-body">
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="file-input" accept="image/*" multiple>
+          <span class="dz-icon">📂</span>
+          <div class="dz-title">Drop your screenshots here</div>
+          <div class="dz-desc">
+            Drag &amp; drop individual images or an entire folder<br>
+            Supports&nbsp; JPG · PNG · BMP · TIFF · WEBP<br>
+            <br>
+            <em>Ideal for software &amp; hardware UI screenshots</em>
+          </div>
+          <div class="dz-actions">
+            <button class="btn-ghost" onclick="document.getElementById('file-input').click();event.stopPropagation()">Select Files</button>
+            <button class="btn-ghost" onclick="document.getElementById('folder-input').click();event.stopPropagation()">Select Folder</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="card" id="card2">
+      <div class="card-head">
+        <div class="snum">2</div>
+        <div class="card-title">AI Sharpening &amp; Analysis</div>
+        <div class="card-meta" id="analysis-label">—</div>
+      </div>
+      <div class="card-body">
+        <div class="stats-bar">
+          <div class="stat"><div class="dot dot-g"></div><span class="sc" id="s-sharp">0</span>&nbsp;<span class="sl">Already sharp</span></div>
+          <div class="stat"><div class="dot dot-b"></div><span class="sc" id="s-sharpened">0</span>&nbsp;<span class="sl">Auto-sharpened</span></div>
+          <div class="stat-total"><span class="sl">Total:&nbsp;</span><span class="sc" id="s-total">0</span></div>
+        </div>
+        <div class="thumb-grid" id="thumb-grid">
+          <div class="empty-hint">Upload images above to see them here</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right">
+
+    <!-- STEP 3 -->
+    <div class="card" id="card3">
+      <div class="card-head">
+        <div class="snum">3</div>
+        <div class="card-title">Choose Output Size</div>
+      </div>
+      <div class="card-body">
+
+        <div class="preset-grid">
+          <button class="pbtn sel" data-w="1654" data-h="1240" onclick="pickPreset(this)">
+            <span class="pl">Full Page · A4</span>
+            <span class="pd">1654 × 1240 px</span>
+          </button>
+          <button class="pbtn" data-w="827" data-h="620" onclick="pickPreset(this)">
+            <span class="pl">Half Page · A4</span>
+            <span class="pd">827 × 620 px</span>
+          </button>
+          <button class="pbtn" data-w="1700" data-h="1275" onclick="pickPreset(this)">
+            <span class="pl">Full Page · Letter</span>
+            <span class="pd">1700 × 1275 px</span>
+          </button>
+          <button class="pbtn" data-w="850" data-h="638" onclick="pickPreset(this)">
+            <span class="pl">Half Page · Letter</span>
+            <span class="pd">850 × 638 px</span>
+          </button>
+          <button class="pbtn" data-w="600" data-h="450" onclick="pickPreset(this)">
+            <span class="pl">Inline / Small</span>
+            <span class="pd">600 × 450 px</span>
+          </button>
+          <button class="pbtn" data-w="300" data-h="225" onclick="pickPreset(this)">
+            <span class="pl">Thumbnail</span>
+            <span class="pd">300 × 225 px</span>
+          </button>
+        </div>
+
+        <div class="custom-row">
+          <div class="sgrp">
+            <input class="sinput" type="number" id="cw" placeholder="Width" min="50" max="3000" oninput="onCustom('w')">
+            <span class="ssep">×</span>
+            <input class="sinput" type="number" id="ch" placeholder="Height" min="50" max="3000" oninput="onCustom('h')">
+            <span class="ssep" style="font-size:9px;color:var(--text-dim)">px</span>
+          </div>
+          <button class="lock-btn on" id="lock-btn" onclick="toggleLock()" title="Toggle aspect ratio lock">🔒</button>
+        </div>
+
+        <div class="ptoggle">
+          <button class="tbtn on" id="btn-a4" onclick="setPage('a4')">A4 (210 × 297 mm)</button>
+          <button class="tbtn" id="btn-letter" onclick="setPage('letter')">US Letter (8.5 × 11 in)</button>
+        </div>
+
+        <div class="prev-wrap">
+          <div class="page-mock" id="page-mock">
+            <div class="page-margin-line"></div>
+            <div class="img-block" id="img-block"></div>
+          </div>
+          <div class="prev-lbl" id="prev-lbl">Select a size above</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="card" id="card4">
+      <div class="card-head">
+        <div class="snum">4</div>
+        <div class="card-title">Process &amp; Download</div>
+      </div>
+      <div class="dl-body">
+        <button class="btn-main" id="dl-btn" onclick="startProcessing()">
+          ⚡ &nbsp;Clean, Resize &amp; Download
+        </button>
+        <div class="dl-list">
+          <div class="dl-row"><span>🗜️</span> ZIP of all cleaned images &nbsp;(JPEG · 92% quality)</div>
+          <div class="dl-row"><span>📄</span> Word document with captions per image</div>
+          <div class="dl-row"><span>📁</span> Both auto-saved to your Downloads folder</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /main -->
+
+<!-- PROGRESS OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="prog-card">
+    <span class="prog-icon" id="prog-icon">⚙️</span>
+    <div class="prog-title">Processing Images</div>
+    <div class="prog-sub" id="prog-sub">Initializing...</div>
+    <div class="pbar-wrap"><div class="pbar" id="pbar"></div></div>
+    <div class="pct" id="pct">0%</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">✅ &nbsp;Done! Check your Downloads folder.</div>
+
+<!-- Hidden folder input -->
+<input type="file" id="folder-input" webkitdirectory accept="image/*" multiple style="display:none">
+
+<!-- ═══════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── STATE ──────────────────────────────────────────────────
+let images = [];      // { file, name, canvas, wasSharpened }
+let selW = 1654, selH = 1240;
+let aspectRatio = selW / selH;
+let lockAspect = true;
+let pageType = 'a4';
+const BLUR_THRESH = 85;  // Laplacian variance threshold
+
+const PAGE = {
+  a4:     { wMm: 210,   hMm: 297,   twipW: 11906, twipH: 16838 },
+  letter: { wMm: 215.9, hMm: 279.4, twipW: 12240, twipH: 15840 }
+};
+
+// ── UPLOAD ─────────────────────────────────────────────────
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const folderInput = document.getElementById('folder-input');
+
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('over');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change',  e => handleFiles(e.target.files));
+folderInput.addEventListener('change', e => handleFiles(e.target.files));
+
+async function handleFiles(list) {
+  const valid = ['image/jpeg','image/png','image/bmp','image/tiff','image/webp','image/gif'];
+  const files = Array.from(list).filter(f =>
+    valid.includes(f.type) || /\.(jpe?g|png|bmp|tiff?|webp)$/i.test(f.name)
+  );
+  if (!files.length) { alert('No supported image files found.'); return; }
+
+  images = [];
+  document.getElementById('file-count-label').textContent = `${files.length} image${files.length !== 1 ? 's' : ''} loaded`;
+  document.getElementById('s-total').textContent = files.length;
+  document.getElementById('s-sharp').textContent = '0';
+  document.getElementById('s-sharpened').textContent = '0';
+  document.getElementById('analysis-label').textContent = 'Analyzing…';
+  document.getElementById('card2').classList.add('active');
+
+  const grid = document.getElementById('thumb-grid');
+  grid.innerHTML = '';
+
+  // Load all images first
+  for (const f of files) {
+    const img = await loadImg(f);
+    images.push(img);
+    addThumb(img, images.length - 1);
+  }
+
+  // Analyze & sharpen each
+  await analyzeAll();
+
+  // Activate remaining steps
+  document.getElementById('card3').classList.add('active');
+  document.getElementById('card4').classList.add('active');
+  updatePreview();
+}
+
+function loadImg(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const el  = new Image();
+    el.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = el.naturalWidth; c.height = el.naturalHeight;
+      c.getContext('2d').drawImage(el, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve({ file, name: file.name, canvas: c, wasSharpened: false });
+    };
+    el.src = url;
+  });
+}
+
+function addThumb(img, idx) {
+  const grid = document.getElementById('thumb-grid');
+  const div = Object.assign(document.createElement('div'), { className: 'thumb', id: `th-${idx}` });
+  const im  = Object.assign(document.createElement('img'), { src: img.canvas.toDataURL('image/jpeg', 0.4) });
+  const nm  = Object.assign(document.createElement('div'), { className: 'tname', textContent: img.name });
+  const bd  = Object.assign(document.createElement('div'), { className: 'tbadge b-analyzing', textContent: '⏳ Analyzing', id: `bd-${idx}` });
+  div.append(im, nm, bd);
+  grid.appendChild(div);
+}
+
+// ── BLUR DETECTION (Laplacian variance) ───────────────────
+function laplacianVariance(canvas) {
+  const ctx = canvas.getContext('2d');
+  const sw = Math.min(canvas.width, 380);
+  const sh = Math.min(canvas.height, 290);
+  const sx = Math.floor((canvas.width  - sw) / 2);
+  const sy = Math.floor((canvas.height - sh) / 2);
+  const { data } = ctx.getImageData(sx, sy, sw, sh);
+
+  let sum = 0, sumSq = 0, n = 0;
+  const g = i => 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+
+  for (let y = 1; y < sh - 1; y++) {
+    for (let x = 1; x < sw - 1; x++) {
+      const i  = (y * sw + x) * 4;
+      const lap = g((y-1)*sw*4 + x*4) + g((y+1)*sw*4 + x*4)
+                + g(y*sw*4 + (x-1)*4) + g(y*sw*4 + (x+1)*4)
+                - 4 * g(i);
+      sum += lap; sumSq += lap * lap; n++;
+    }
+  }
+  const mean = sum / n;
+  return sumSq / n - mean * mean;
+}
+
+// ── UNSHARP MASK SHARPENING ───────────────────────────────
+function sharpenCanvas(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const orig = ctx.getImageData(0, 0, w, h);
+
+  // Blur offscreen
+  const bc = document.createElement('canvas');
+  bc.width = w; bc.height = h;
+  const bx = bc.getContext('2d');
+  bx.filter = 'blur(1.5px)';
+  bx.drawImage(canvas, 0, 0);
+  const blur = bx.getImageData(0, 0, w, h);
+
+  const res = ctx.createImageData(w, h);
+  const amount = 0.85, thr = 4;
+  const od = orig.data, bd = blur.data, rd = res.data;
+
+  for (let i = 0; i < od.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const diff = od[i+c] - bd[i+c];
+      rd[i+c] = Math.min(255, Math.max(0, Math.abs(diff) > thr ? od[i+c] + amount * diff : od[i+c]));
+    }
+    rd[i+3] = od[i+3];
+  }
+  ctx.putImageData(res, 0, 0);
+}
+
+async function analyzeAll() {
+  let nSharp = 0, nSharpened = 0;
+  for (let i = 0; i < images.length; i++) {
+    await tick();
+    const img = images[i];
+    const variance = laplacianVariance(img.canvas);
+    const badge = document.getElementById(`bd-${i}`);
+    if (variance < BLUR_THRESH) {
+      badge.textContent = '✨ Sharpening…';
+      await tick();
+      sharpenCanvas(img.canvas);
+      img.wasSharpened = true;
+      badge.textContent = '✨ Sharpened';
+      badge.className = 'tbadge b-sharpened';
+      nSharpened++;
+    } else {
+      img.wasSharpened = false;
+      badge.textContent = '✅ Sharp';
+      badge.className = 'tbadge b-sharp';
+      nSharp++;
+    }
+    document.getElementById('s-sharp').textContent = nSharp;
+    document.getElementById('s-sharpened').textContent = nSharpened;
+  }
+  document.getElementById('analysis-label').textContent = `Done · ${images.length} processed`;
+}
+
+const tick = (ms = 15) => new Promise(r => setTimeout(r, ms));
+
+// ── SIZE SELECTION ─────────────────────────────────────────
+function pickPreset(btn) {
+  document.querySelectorAll('.pbtn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  selW = +btn.dataset.w; selH = +btn.dataset.h;
+  aspectRatio = selW / selH;
+  document.getElementById('cw').value = '';
+  document.getElementById('ch').value = '';
+  updatePreview();
+}
+
+function onCustom(changed) {
+  document.querySelectorAll('.pbtn').forEach(b => b.classList.remove('sel'));
+  const wEl = document.getElementById('cw'), hEl = document.getElementById('ch');
+  if (changed === 'w') {
+    const v = parseInt(wEl.value);
+    if (!isNaN(v) && v > 0) {
+      selW = Math.min(v, 3000);
+      if (lockAspect) { selH = Math.round(selW / aspectRatio); hEl.value = selH; }
+      else selH = parseInt(hEl.value) || selH;
+    }
+  } else {
+    const v = parseInt(hEl.value);
+    if (!isNaN(v) && v > 0) {
+      selH = Math.min(v, 3000);
+      if (lockAspect) { selW = Math.round(selH * aspectRatio); wEl.value = selW; }
+      else selW = parseInt(wEl.value) || selW;
+    }
+  }
+  if (!lockAspect) aspectRatio = selW / selH;
+  updatePreview();
+}
+
+function toggleLock() {
+  lockAspect = !lockAspect;
+  const b = document.getElementById('lock-btn');
+  b.textContent = lockAspect ? '🔒' : '🔓';
+  b.classList.toggle('on', lockAspect);
+  if (lockAspect) aspectRatio = selW / selH;
+}
+
+function setPage(type) {
+  pageType = type;
+  document.getElementById('btn-a4').classList.toggle('on', type === 'a4');
+  document.getElementById('btn-letter').classList.toggle('on', type === 'letter');
+  updatePreview();
+}
+
+// ── LIVE PREVIEW ───────────────────────────────────────────
+function updatePreview() {
+  const mock  = document.getElementById('page-mock');
+  const block = document.getElementById('img-block');
+  const lbl   = document.getElementById('prev-lbl');
+  const pg = PAGE[pageType];
+
+  const MOCK_H = 250;
+  const scale  = MOCK_H / pg.hMm;
+  const mockW  = Math.round(pg.wMm * scale);
+  mock.style.width  = mockW + 'px';
+  mock.style.height = MOCK_H + 'px';
+
+  const marginMm = 20;
+  const mPx = marginMm * scale;
+  const cW  = (pg.wMm - marginMm * 2) * scale;
+  const cH  = (pg.hMm - marginMm * 2) * scale;
+
+  // Convert px → mm → preview-px  (assume 96 dpi: 1px = 0.2646mm)
+  let iW = selW * 0.2646 * scale;
+  let iH = selH * 0.2646 * scale;
+
+  if (iW > cW) { const r = cW / iW; iW = cW; iH *= r; }
+  if (iH > cH) { const r = cH / iH; iH = cH; iW *= r; }
+
+  const left = mPx + (cW - iW) / 2;
+  block.style.left   = left + 'px';
+  block.style.top    = mPx + 'px';
+  block.style.width  = iW + 'px';
+  block.style.height = iH + 'px';
+
+  const pct = Math.round((iW / cW) * 100);
+  lbl.innerHTML = `${selW} &times; ${selH}&nbsp;px &nbsp;&middot;&nbsp; <em>~${pct}% of page width</em>`;
+}
+
+// ── RESIZE ─────────────────────────────────────────────────
+function resizeCanvas(src, tw, th) {
+  const dst = document.createElement('canvas');
+  dst.width = tw; dst.height = th;
+  const ctx = dst.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, tw, th);
+  return dst;
+}
+
+// ── DOCX BUILDER (raw OOXML + JSZip) ──────────────────────
+async function buildDocx(blobs, names) {
+  const zip = new JSZip();
+  const pg  = PAGE[pageType];
+
+  // Content width in EMU: (page_twips - 2×1440_margin) × 635 EMU/twip
+  const cEmu = (pg.twipW - 2 * 1440) * 635;
+  const dW   = cEmu;
+  const dH   = Math.round(cEmu * selH / selW);
+
+  // Relationships
+  let rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`;
+  blobs.forEach((_, i) => { rels += `\n  <Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i+1}.jpg"/>`; });
+  rels += '\n</Relationships>';
+
+  // Body paragraphs
+  const esc = s => s.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  let body = '';
+  blobs.forEach((_, i) => {
+    const n = esc(names[i]);
+    body += `
+    <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>
+      <w:r><w:drawing>
+        <wp:inline distT="0" distB="0" distL="0" distR="0"
+          xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+          <wp:extent cx="${dW}" cy="${dH}"/>
+          <wp:effectExtent l="0" t="0" r="0" b="0"/>
+          <wp:docPr id="${i+1}" name="Img${i+1}" descr="${n}"/>
+          <wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+          <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:nvPicPr><pic:cNvPr id="${i+1}" name="${n}"/><pic:cNvPicPr/></pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="rId${i+1}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
+                  <a:stretch><a:fillRect/></a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm><a:off x="0" y="0"/><a:ext cx="${dW}" cy="${dH}"/></a:xfrm>
+                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing></w:r>
+    </w:p>
+    <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="60" w:after="120"/></w:pPr>
+      <w:r><w:rPr><w:color w:val="777777"/><w:sz w:val="18"/></w:rPr>
+        <w:t>Figure ${i+1}: ${n}</w:t>
+      </w:r>
+    </w:p>
+    ${i < blobs.length - 1 ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : ''}`;
+  });
+
+  const now = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  mc:Ignorable="">
+  <w:body>
+    <w:p>
+      <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="200"/></w:pPr>
+      <w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr>
+        <w:t>Image Set — Prepared by Auto Image Cleaner</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="600"/></w:pPr>
+      <w:r><w:rPr><w:color w:val="999999"/><w:sz w:val="18"/></w:rPr>
+        <w:t>${blobs.length} image${blobs.length !== 1 ? 's' : ''} · ${selW}×${selH} px · ${pageType.toUpperCase()} · ${now}</w:t>
+      </w:r>
+    </w:p>
+    <w:p><w:r><w:br w:type="page"/></w:r></w:p>
+${body}
+    <w:sectPr>
+      <w:pgSz w:w="${pg.twipW}" w:h="${pg.twipH}"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="709" w:footer="709" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+  zip.file('[Content_Types].xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml"  ContentType="application/xml"/>
+  <Default Extension="jpg"  ContentType="image/jpeg"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+
+  zip.file('_rels/.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+  zip.file('word/document.xml', docXml);
+  zip.file('word/_rels/document.xml.rels', rels);
+
+  for (let i = 0; i < blobs.length; i++) {
+    zip.file(`word/media/image${i+1}.jpg`, await blobs[i].arrayBuffer());
+  }
+
+  return zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  });
+}
+
+// ── PROCESSING ─────────────────────────────────────────────
+async function startProcessing() {
+  if (!images.length) { alert('Please upload images first!'); return; }
+  showOvl(true);
+
+  try {
+    const blobs = [], names = [];
+
+    for (let i = 0; i < images.length; i++) {
+      setProgress(i, images.length, `Resizing image ${i+1} of ${images.length}: ${images[i].name}`);
+      await tick(25);
+      const rs = resizeCanvas(images[i].canvas, selW, selH);
+      const b  = await new Promise(res => rs.toBlob(res, 'image/jpeg', 0.92));
+      blobs.push(b);
+      names.push(images[i].name.replace(/\.[^/.]+$/, '') + '.jpg');
+    }
+
+    setProgress(images.length, images.length, 'Packaging ZIP file…');
+    await tick(60);
+
+    const imgZip = new JSZip();
+    for (let i = 0; i < blobs.length; i++) imgZip.file(names[i], blobs[i]);
+    const zipBlob = await imgZip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+
+    const ts = new Date().toISOString().slice(0,16).replace(/[T:]/g, '-');
+    dlBlob(zipBlob, `AutoImageCleaner_Images_${ts}.zip`);
+
+    setProgress(images.length, images.length, 'Generating Word document…');
+    document.getElementById('prog-icon').textContent = '📄';
+    await tick(200);
+
+    const docxBlob = await buildDocx(blobs, names);
+    await tick(300);
+    dlBlob(docxBlob, `AutoImageCleaner_Doc_${ts}.docx`);
+
+    showOvl(false);
+    showToast();
+
+  } catch (err) {
+    showOvl(false);
+    alert('An error occurred:\n' + err.message);
+    console.error(err);
+  }
+}
+
+function dlBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+// ── UI HELPERS ─────────────────────────────────────────────
+function showOvl(v) { document.getElementById('overlay').classList.toggle('show', v); }
+
+function setProgress(cur, tot, msg) {
+  const pct = tot ? Math.round(cur / tot * 100) : 0;
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('pct').textContent  = pct + '%';
+  document.getElementById('prog-sub').textContent = msg;
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4500);
+}
+
+// Init
+updatePreview();
+</script>
+</body>
+</html>
